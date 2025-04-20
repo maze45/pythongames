@@ -1,0 +1,153 @@
+import pygame
+import random
+import sys
+
+# Initialize pygame
+pygame.init()
+
+# Game Window Settings
+WIDTH, HEIGHT = 400, 600
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Flappy Bird")
+
+# Colors
+WHITE = (255, 255, 255)
+BLUE = (135, 206, 250)
+GREEN = (0, 200, 0)
+BLACK = (0, 0, 0)
+
+# Fonts
+FONT = pygame.font.SysFont("Arial", 32)
+LARGE_FONT = pygame.font.SysFont("Arial", 48)
+
+# Game Variables
+FPS = 60
+GRAVITY = 0.5
+JUMP = -10  # Jump velocity
+PIPE_GAP = 150
+PIPE_WIDTH = 60
+PIPE_VELOCITY = 3
+BIRD_RADIUS = 15
+BIRD_X = 80
+
+
+def draw_window(bird_y, pipes, score):
+    WIN.fill(BLUE)  # Background color
+    pygame.draw.circle(WIN, WHITE, (BIRD_X, int(bird_y)), BIRD_RADIUS)  # Draw the bird
+
+    # Draw pipes
+    for top, bottom in pipes:
+        pygame.draw.rect(WIN, GREEN, top)
+        pygame.draw.rect(WIN, GREEN, bottom)
+
+    # Draw the score
+    score_text = FONT.render(f"Score: {score}", True, BLACK)
+    WIN.blit(score_text, (10, 10))
+
+    pygame.display.update()  # Update the display
+
+
+def generate_pipe():
+    height = random.randint(100, HEIGHT - PIPE_GAP - 100)
+    top_pipe = pygame.Rect(WIDTH, 0, PIPE_WIDTH, height)
+    bottom_pipe = pygame.Rect(WIDTH, height + PIPE_GAP, PIPE_WIDTH, HEIGHT)
+    return top_pipe, bottom_pipe
+
+
+def check_collision(bird_y, pipes):
+    bird_rect = pygame.Rect(BIRD_X - BIRD_RADIUS, bird_y - BIRD_RADIUS, BIRD_RADIUS * 2, BIRD_RADIUS * 2)
+
+    # Collision with top and bottom of the screen
+    if bird_y - BIRD_RADIUS <= 0 or bird_y + BIRD_RADIUS >= HEIGHT:
+        return True
+
+    # Collision with pipes
+    for top, bottom in pipes:
+        if bird_rect.colliderect(top) or bird_rect.colliderect(bottom):
+            return True
+
+    return False
+
+
+def game_over_screen(score):
+    WIN.fill(BLUE)
+    msg = LARGE_FONT.render("Game Over", True, BLACK)
+    score_msg = FONT.render(f"Score: {score}", True, BLACK)
+    restart_msg = FONT.render("Press R to Restart", True, BLACK)
+
+    WIN.blit(msg, (WIDTH // 2 - msg.get_width() // 2, HEIGHT // 3))
+    WIN.blit(score_msg, (WIDTH // 2 - score_msg.get_width() // 2, HEIGHT // 2))
+    WIN.blit(restart_msg, (WIDTH // 2 - restart_msg.get_width() // 2, HEIGHT // 2 + 50))
+    pygame.display.update()
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_r]:
+            waiting = False  # Allow game to restart
+
+
+def main():
+    bird_y = HEIGHT // 2  # Start position of the bird
+    bird_velocity = 0
+    pipes = []
+    score = 0
+    frame_count = 0
+    clock = pygame.time.Clock()
+    space_pressed = False  # To prevent rapid jumps
+    passed_pipes = []  # To track pipes that the bird has passed
+
+    running = True
+    while running:
+        clock.tick(FPS)
+        frame_count += 1
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        keys = pygame.key.get_pressed()
+
+        # Only allow jumping if space isn't already pressed
+        if keys[pygame.K_SPACE]:
+            if not space_pressed:
+                bird_velocity = JUMP
+                space_pressed = True
+        else:
+            space_pressed = False
+
+        # Apply gravity and update bird's position
+        bird_velocity += GRAVITY
+        bird_y += bird_velocity
+
+        # Generate pipes periodically
+        if frame_count % 90 == 0:
+            pipes.append(generate_pipe())
+
+        # Move pipes to the left
+        pipes = [(t.move(-PIPE_VELOCITY, 0), b.move(-PIPE_VELOCITY, 0)) for t, b in pipes]
+        pipes = [p for p in pipes if p[0].x + PIPE_WIDTH > 0]  # Remove pipes that are out of screen
+
+        # Check for passing pipes (bird crossing a pipe)
+        for top, _ in pipes:
+            if top.x + PIPE_WIDTH == BIRD_X and top not in passed_pipes:
+                passed_pipes.append(top)  # Mark this pipe as passed
+                score += 1  # Increment score
+
+        # Check for collisions
+        if check_collision(bird_y, pipes):
+            game_over_screen(score)
+            return main()  # Restart game
+
+        # Draw the window with updated positions
+        draw_window(bird_y, pipes, score)
+
+
+if __name__ == "__main__":
+    main()
